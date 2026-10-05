@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 """
-PostureGuard - Interactive Individual Motor Control Tool
+PostureGuard - Numbered Interactive Motor Control Studio
 
-An interactive CLI tool to control and test individual servo motors on the 6-DOF Robotic Arm:
-- Channel 0: Waist / Base (360° Continuous Rotation Servo)
-- Channel 1: Shoulder Joint (MG995 180° Positional Servo)
-- Channel 2: Elbow Joint (MG995 180° Positional Servo)
-- Channel 3: Wrist Roll (SG90 Servo)
-- Channel 4: Wrist Pitch (SG90 180° Positional Servo)
-- Channel 5: Gripper Claw (MG90S 180° Metal-Gear Servo)
+An easy-to-use numbered menu CLI tool to control individual servo motors on the 6-DOF Robotic Arm:
+  [1] Channel 0: Waist / Base (360° Continuous Servo)
+  [2] Channel 1: Shoulder Joint (MG995 180° Positional)
+  [3] Channel 2: Elbow Joint (MG995 180° Positional)
+  [4] Channel 3: Wrist Roll (SG90 Servo)
+  [5] Channel 4: Wrist Pitch (SG90 180° Positional)
+  [6] Channel 5: Gripper Claw (MG90S 180° Metal-Gear)
+  [7] Home Arm (Park to resting position)
+  [8] Open Gripper Claw
+  [9] Close Gripper Claw
+  [10] Deploy Screen Blocker Sequence
+  [11] Retrieve Blocker Sequence
+  [12] Pickup Cardboard
+  [13] Putback Cardboard
+  [14] Emergency Stop (Cut PWM Power)
+  [0 / q] Quit
 
 Usage:
   python3 interactive_motor_control.py [--port /dev/ttyUSB0] [--baud 115200]
@@ -33,7 +42,6 @@ def detect_port(requested_port=None):
     if requested_port:
         return requested_port
     ports = list(serial.tools.list_ports.comports())
-    # Priority for standard Linux and Windows device names
     for p in ports:
         if "ttyUSB" in p.device or "ttyACM" in p.device:
             return p.device
@@ -48,7 +56,7 @@ def detect_port(requested_port=None):
         return ports[0].device
     return "/dev/ttyUSB0"
 
-class ArmController:
+class NumberedArmController:
     def __init__(self, port, baud=115200):
         self.port = port
         self.baud = baud
@@ -63,10 +71,10 @@ class ArmController:
             print(f"[!] Failed to open serial port {self.port}: {e}")
             return False
 
-        print("Waiting 2.5s for Arduino initialization & boot recovery...")
+        print("Initializing connection. Waiting 2.5s...")
         time.sleep(2.5)
 
-        # Drain boot lines
+        # Drain boot banner
         while self.ser.in_waiting:
             line = self.ser.readline().decode("ascii", errors="replace").strip()
             if line:
@@ -81,8 +89,7 @@ class ArmController:
             return []
 
         self.ser.reset_input_buffer()
-        cmd_str = cmd.strip() + "\n"
-        self.ser.write(cmd_str.encode("ascii"))
+        self.ser.write((cmd.strip() + "\n").encode("ascii"))
         self.ser.flush()
 
         responses = []
@@ -98,208 +105,184 @@ class ArmController:
         return responses
 
     def set_channel_angle(self, channel, angle):
-        if channel not in CHANNEL_INFO:
-            print(f"[!] Invalid channel {channel}. Choose 0 through 5.")
-            return False
-
         info = CHANNEL_INFO[channel]
-        angle = max(info["min"], min(info["max"], angle))
+        clamped = max(info["min"], min(info["max"], angle))
 
-        cmd = f"{channel} {angle}"
-        print(f">>> Moving Channel {channel} ({info['name']}) to {angle}°")
+        cmd = f"{channel} {clamped}"
+        print(f"\n>>> Moving Channel {channel} ({info['name']}) to {clamped}°")
         resp = self.send_command(cmd)
         if resp:
-            print(f"    Response: {', '.join(resp)}")
-            self.positions[channel] = angle
+            print(f"    Arduino Response: {', '.join(resp)}")
+            self.positions[channel] = clamped
             return True
         return False
 
-    def move_channel_relative(self, channel, delta):
-        current = self.positions.get(channel, CHANNEL_INFO[channel]["default"])
-        target = current + delta
-        return self.set_channel_angle(channel, target)
-
-    def spin_base(self, direction, duration_ms):
-        """Channel 0 CW/CCW continuous rotation"""
+    def spin_continuous(self, channel, direction, duration_ms):
         dir_str = "CW" if direction > 0 else "CCW"
-        cmd = f"0 {dir_str} {duration_ms}"
-        print(f">>> Spinning Base (Channel 0) {dir_str} for {duration_ms} ms")
+        cmd = f"{channel} {dir_str} {duration_ms}"
+        print(f"\n>>> Spinning Channel {channel} ({CHANNEL_INFO[channel]['name']}) {dir_str} for {duration_ms} ms")
         resp = self.send_command(cmd)
         if resp:
-            print(f"    Response: {', '.join(resp)}")
-
-    def spin_wrist3(self, direction, duration_ms):
-        """Channel 3 CW/CCW rotation"""
-        dir_str = "CW" if direction > 0 else "CCW"
-        cmd = f"3 {dir_str} {duration_ms}"
-        print(f">>> Spinning Wrist Roll (Channel 3) {dir_str} for {duration_ms} ms")
-        resp = self.send_command(cmd)
-        if resp:
-            print(f"    Response: {', '.join(resp)}")
-
-    def open_gripper(self):
-        print(">>> Opening Gripper Claw (Channel 5)...")
-        resp = self.send_command("OPEN")
-        print(f"    Response: {', '.join(resp)}")
-
-    def close_gripper(self):
-        print(">>> Closing Gripper Claw (Channel 5)...")
-        resp = self.send_command("CLOSE")
-        print(f"    Response: {', '.join(resp)}")
+            print(f"    Arduino Response: {', '.join(resp)}")
 
     def home(self):
-        print(">>> Moving Arm to Calibrated Home Dock...")
+        print("\n>>> Moving Arm to Calibrated Home Position...")
         resp = self.send_command("HOME", timeout=5.0)
-        print(f"    Response: {', '.join(resp)}")
+        print(f"    Arduino Response: {', '.join(resp)}")
         for ch, info in CHANNEL_INFO.items():
             self.positions[ch] = info["default"]
 
-    def stop_all(self):
-        print(">>> Stopping all motors (PWM Cutoff)...")
-        resp = self.send_command("STOP")
-        print(f"    Response: {', '.join(resp)}")
+    def open_gripper(self):
+        print("\n>>> Opening Gripper Claw (Channel 5)...")
+        resp = self.send_command("OPEN")
+        print(f"    Arduino Response: {', '.join(resp)}")
+        self.positions[5] = 30
 
-    def get_status(self):
-        resp = self.send_command("STATUS")
-        print(f"    Arm Status: {', '.join(resp)}")
+    def close_gripper(self):
+        print("\n>>> Closing Gripper Claw (Channel 5)...")
+        resp = self.send_command("CLOSE")
+        print(f"    Arduino Response: {', '.join(resp)}")
+        self.positions[5] = -25
+
+    def stop_all(self):
+        print("\n>>> Cutting PWM power to all motors (Emergency Stop)...")
+        resp = self.send_command("STOP")
+        print(f"    Arduino Response: {', '.join(resp)}")
 
     def close(self):
         if self.ser and self.ser.is_open:
             self.ser.close()
             print("Serial connection closed.")
 
-def print_menu(controller):
+def print_numbered_menu(controller):
+    print("\n" + "=" * 65)
+    print("      POSTUREGUARD - NUMBERED MOTOR CONTROL MENU")
     print("=" * 65)
-    print("      POSTUREGUARD - INDIVIDUAL MOTOR CONTROL STUDIO")
-    print("=" * 65)
-    print(" MOTOR CHANNELS & CURRENT KNOWN ANGLES:")
-    for ch in range(6):
+    print(" INDIVIDUAL MOTOR CHANNELS:")
+    for num, ch in enumerate([0, 1, 2, 3, 4, 5], start=1):
         info = CHANNEL_INFO[ch]
         pos = controller.positions.get(ch, info["default"])
-        print(f"  Ch {ch}: {info['name']:<18} | Type: {info['type']:<22} | Current: {pos}°")
+        print(f"  [{num}] Channel {ch}: {info['name']:<18} (Range: {info['min']}°..{info['max']}°) | Current: {pos}°")
     print("-" * 65)
-    print(" INDIVIDUAL MOTOR CONTROL COMMANDS:")
-    print("  <ch> <angle>       : Set channel (0-5) to angle (e.g., '1 90', '5 30')")
-    print("  <ch> +<deg>        : Increase angle by degrees (e.g., '1 +10', '4 +5')")
-    print("  <ch> -<deg>        : Decrease angle by degrees (e.g., '2 -10', '5 -5')")
-    print("  0 cw <ms>          : Spin Base (Ch 0) Clockwise for MS (e.g., '0 cw 200')")
-    print("  0 ccw <ms>         : Spin Base (Ch 0) Counter-Clockwise for MS (e.g., '0 ccw 200')")
-    print("  3 cw <ms>          : Spin Wrist (Ch 3) CW for MS (e.g., '3 cw 150')")
-    print("  3 ccw <ms>         : Spin Wrist (Ch 3) CCW for MS (e.g., '3 ccw 150')")
-    print("  open / close       : Open (30°) or Close (-25°) Gripper Claw (Ch 5)")
-    print("-" * 65)
-    print(" MACRO / PRESET SYSTEM COMMANDS:")
-    print("  home               : Park all motors to resting home position")
-    print("  block              : Run posture correction blocking sequence")
-    print("  retrieve           : Retract arm & return blocker sheet to dock")
-    print("  pickup             : Execute cardboard pickup routine")
-    print("  putback            : Execute cardboard putback routine")
-    print("  stop               : Cut PWM power to all motors immediately")
-    print("  status             : Query Arduino arm state")
-    print("  q / quit           : Exit controller")
+    print(" SYSTEM PRESET ACTIONS:")
+    print("  [7]  Home Arm (Park to resting position)")
+    print("  [8]  Open Gripper Claw (30°)")
+    print("  [9]  Close Gripper Claw (-25°)")
+    print("  [10] Deploy Screen Blocker Sequence")
+    print("  [11] Retrieve Blocker Sequence")
+    print("  [12] Execute Cardboard Pickup Routine")
+    print("  [13] Execute Cardboard Putback Routine")
+    print("  [14] Emergency Stop (Cut PWM Power to all motors)")
+    print("  [0 / q] Quit")
     print("=" * 65)
 
-def interactive_loop(controller):
-    while True:
-        print_menu(controller)
+def handle_individual_motor_selection(controller, ch):
+    info = CHANNEL_INFO[ch]
+    pos = controller.positions.get(ch, info["default"])
+    print(f"\n--- Selected: [{ch+1}] Channel {ch} - {info['name']} (Current: {pos}°) ---")
+
+    if ch in [0, 3]:
+        print(" Options:")
+        print("   • Enter target angle (e.g. 90, 120, 180)")
+        print("   • Enter relative step (e.g. +10, -10, +5)")
+        print("   • Enter continuous spin (e.g. 'cw 200', 'ccw 300')")
+    else:
+        print(f" Options: Enter angle between {info['min']}° and {info['max']}° (or relative +10, -5)")
+
+    val = input(f" Enter value for Channel {ch}: ").strip()
+    if not val:
+        return
+
+    val_lower = val.lower()
+    if val_lower.startswith("cw "):
         try:
-            line = input("\nEnter command: ").strip()
+            ms = int(val.split()[1])
+            controller.spin_continuous(ch, 1, ms)
+        except Exception:
+            print("[!] Invalid ms. Example: 'cw 200'")
+    elif val_lower.startswith("ccw "):
+        try:
+            ms = int(val.split()[1])
+            controller.spin_continuous(ch, -1, ms)
+        except Exception:
+            print("[!] Invalid ms. Example: 'ccw 200'")
+    elif val.startswith("+") and val[1:].isdigit():
+        delta = int(val[1:])
+        controller.set_channel_angle(ch, pos + delta)
+    elif val.startswith("-") and val[1:].isdigit():
+        delta = int(val[1:])
+        controller.set_channel_angle(ch, pos - delta)
+    elif val.lstrip("-").isdigit():
+        ang = int(val)
+        controller.set_channel_angle(ch, ang)
+    else:
+        # Direct raw command fallback
+        resp = controller.send_command(f"{ch} {val}")
+        print(f"    Arduino Response: {', '.join(resp)}")
+
+def interactive_numbered_loop(controller):
+    while True:
+        print_numbered_menu(controller)
+        try:
+            choice = input("\nSelect option number (0-14): ").strip()
         except (KeyboardInterrupt, EOFError):
             print("\nExiting...")
             break
 
-        if not line:
+        if not choice:
             continue
 
-        cmd_lower = line.lower()
-        if cmd_lower in ["q", "quit", "exit"]:
+        if choice in ["0", "q", "quit", "exit"]:
+            print("Exiting motor controller studio.")
             break
 
-        if cmd_lower == "home":
+        # Check Motor numbers [1] to [6]
+        if choice in ["1", "2", "3", "4", "5", "6"]:
+            ch = int(choice) - 1  # Map option 1->ch0, 2->ch1, etc.
+            handle_individual_motor_selection(controller, ch)
+        elif choice == "7":
             controller.home()
-        elif cmd_lower == "stop":
-            controller.stop_all()
-        elif cmd_lower == "open":
+        elif choice == "8":
             controller.open_gripper()
-        elif cmd_lower == "close":
+        elif choice == "9":
             controller.close_gripper()
-        elif cmd_lower == "status":
-            controller.get_status()
-        elif cmd_lower in ["block", "retrieve", "pickup", "putback"]:
-            print(f">>> Executing system macro: {line.upper()}")
-            resp = controller.send_command(line.upper(), timeout=8.0)
-            print(f"    Response: {', '.join(resp)}")
-        elif cmd_lower.startswith("0 cw "):
-            try:
-                ms = int(line.split()[2])
-                controller.spin_base(1, ms)
-            except Exception:
-                print("[!] Syntax error. Usage: 0 cw <ms>")
-        elif cmd_lower.startswith("0 ccw "):
-            try:
-                ms = int(line.split()[2])
-                controller.spin_base(-1, ms)
-            except Exception:
-                print("[!] Syntax error. Usage: 0 ccw <ms>")
-        elif cmd_lower.startswith("3 cw "):
-            try:
-                ms = int(line.split()[2])
-                controller.spin_wrist3(1, ms)
-            except Exception:
-                print("[!] Syntax error. Usage: 3 cw <ms>")
-        elif cmd_lower.startswith("3 ccw "):
-            try:
-                ms = int(line.split()[2])
-                controller.spin_wrist3(-1, ms)
-            except Exception:
-                print("[!] Syntax error. Usage: 3 ccw <ms>")
+        elif choice == "10":
+            print("\n>>> Executing BLOCK sequence...")
+            resp = controller.send_command("BLOCK", timeout=8.0)
+            print(f"    Arduino Response: {', '.join(resp)}")
+        elif choice == "11":
+            print("\n>>> Executing RETRIEVE sequence...")
+            resp = controller.send_command("RETRIEVE", timeout=8.0)
+            print(f"    Arduino Response: {', '.join(resp)}")
+        elif choice == "12":
+            print("\n>>> Executing PICKUP sequence...")
+            resp = controller.send_command("PICKUP", timeout=8.0)
+            print(f"    Arduino Response: {', '.join(resp)}")
+        elif choice == "13":
+            print("\n>>> Executing PUTBACK sequence...")
+            resp = controller.send_command("PUTBACK", timeout=8.0)
+            print(f"    Arduino Response: {', '.join(resp)}")
+        elif choice == "14":
+            controller.stop_all()
         else:
-            # Check for <ch> <angle> or <ch> +<delta> / <ch> -<delta>
-            parts = line.split()
-            if len(parts) == 2 and parts[0].isdigit():
-                ch = int(parts[0])
-                val_str = parts[1]
-                if val_str.startswith("+") and val_str[1:].isdigit():
-                    controller.move_channel_relative(ch, int(val_str[1:]))
-                elif val_str.startswith("-") and val_str[1:].isdigit():
-                    controller.move_channel_relative(ch, -int(val_str[1:]))
-                elif val_str.lstrip("-").isdigit():
-                    controller.set_channel_angle(ch, int(val_str))
-                else:
-                    print(f"[!] Unrecognized angle format '{val_str}'")
-            else:
-                # Raw command fallback to Arduino
-                print(f">>> Sending raw command to Arduino: '{line}'")
-                resp = controller.send_command(line)
-                print(f"    Response: {', '.join(resp)}")
+            print("[!] Invalid option number. Please select a number between 0 and 14.")
 
         time.sleep(0.1)
 
 def main():
-    parser = argparse.ArgumentParser(description="PostureGuard Interactive Individual Motor Control Tool")
+    parser = argparse.ArgumentParser(description="PostureGuard Numbered Motor Control Menu")
     parser.add_argument("--port", type=str, default=None, help="Serial port (default: auto-detected)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
-    parser.add_argument("--channel", type=int, choices=range(6), help="One-shot: channel to move")
-    parser.add_argument("--angle", type=int, help="One-shot: angle to set")
-    parser.add_argument("--home", action="store_true", help="One-shot: send arm home")
-    parser.add_argument("--stop", action="store_true", help="One-shot: cut motor power")
 
     args = parser.parse_args()
     port = detect_port(args.port)
 
-    controller = ArmController(port, args.baud)
+    controller = NumberedArmController(port, args.baud)
     if not controller.connect():
         sys.exit(1)
 
     try:
-        if args.home:
-            controller.home()
-        elif args.stop:
-            controller.stop_all()
-        elif args.channel is not None and args.angle is not None:
-            controller.set_channel_angle(args.channel, args.angle)
-        else:
-            interactive_loop(controller)
+        interactive_numbered_loop(controller)
     finally:
         controller.close()
 
