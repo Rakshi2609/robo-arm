@@ -269,6 +269,11 @@ def main():
     parser = argparse.ArgumentParser(description="Natural Terminal Motor Tester")
     parser.add_argument("--port", type=str, default=None, help="Serial port (auto-detected by default)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
+    parser.add_argument("--cmd", type=str, default=None, help="One-shot command string (e.g. --cmd 'shoulder 90')")
+    parser.add_argument("--channel", type=int, choices=range(6), help="One-shot channel (0-5)")
+    parser.add_argument("--angle", type=int, help="One-shot angle")
+    parser.add_argument("--home", action="store_true", help="One-shot: send arm home")
+    parser.add_argument("--stop", action="store_true", help="One-shot: stop all motors")
 
     args = parser.parse_args()
     port = detect_port(args.port)
@@ -277,24 +282,32 @@ def main():
     if not tester.connect():
         sys.exit(1)
 
-    print_help()
-
     try:
-        while True:
-            try:
-                user_input = input("\nSay anything > ").strip()
-            except (KeyboardInterrupt, EOFError):
-                print("\nExiting...")
-                break
+        if args.home:
+            tester.parse_and_execute("home")
+        elif args.stop:
+            tester.parse_and_execute("stop")
+        elif args.channel is not None and args.angle is not None:
+            tester.move_motor(args.channel, args.angle)
+        elif args.cmd is not None:
+            tester.parse_and_execute(args.cmd)
+        else:
+            print_help()
+            while True:
+                try:
+                    user_input = input("\nSay anything > ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    print("\nExiting...")
+                    break
 
-            if not user_input:
-                continue
+                if not user_input:
+                    continue
 
-            if user_input.lower() in ["q", "quit", "exit"]:
-                break
+                if user_input.lower() in ["q", "quit", "exit"]:
+                    break
 
-            tester.parse_and_execute(user_input)
-            time.sleep(0.05)
+                tester.parse_and_execute(user_input)
+                time.sleep(0.05)
     finally:
         tester.close()
 
