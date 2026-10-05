@@ -655,6 +655,40 @@ void executeRetrieve() {
   Serial.println(F("RETRIEVE_OK"));
 }
 
+void testChannel0() {
+  Serial.println(F("TESTING_CH0_BASE..."));
+  rotateBaseSmooth(1, 300);
+  delay(1000);
+  rotateBaseSmooth(-1, 300);
+  Serial.println(F("TEST_CH0_OK"));
+}
+
+void testChannel1() {
+  Serial.println(F("TESTING_CH1_SHOULDER..."));
+  setPositionalJoint(CH_SHOULDER, 100);
+  delay(1500);
+  setPositionalJoint(CH_SHOULDER, 135);
+  Serial.println(F("TEST_CH1_OK"));
+}
+
+void testChannel2() {
+  Serial.println(F("TESTING_CH2_ELBOW..."));
+  setPositionalJoint(CH_ELBOW, 140);
+  delay(1500);
+  setPositionalJoint(CH_ELBOW, 180);
+  Serial.println(F("TEST_CH2_OK"));
+}
+
+void testChannel012() {
+  Serial.println(F("STARTING_CH012_SWEEP_TEST..."));
+  testChannel0();
+  delay(800);
+  testChannel1();
+  delay(800);
+  testChannel2();
+  Serial.println(F("TEST_CH012_COMPLETE"));
+}
+
 void printStatus() {
   switch (currentArmState) {
     case STATE_DOCKED:  Serial.println(F("STATE_DOCKED")); break;
@@ -711,6 +745,18 @@ void loop() {
     }
     else if (input == "STATUS") {
       printStatus();
+    }
+    else if (input == "TEST" || input == "TEST012") {
+      testChannel012();
+    }
+    else if (input == "TEST0") {
+      testChannel0();
+    }
+    else if (input == "TEST1") {
+      testChannel1();
+    }
+    else if (input == "TEST2") {
+      testChannel2();
     }
     // --- Diagnostics / Direct Controls ---
     else if (input == "HOME" || input == "BASE") {
