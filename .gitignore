@@ -10,11 +10,9 @@ __pycache__/
 venv/
 
 # Environment
-.env
-.env.local
 
 # OS / editors
 .DS_Store
 .idea/
-.vscode/
 Thumbs.db
+config.bat

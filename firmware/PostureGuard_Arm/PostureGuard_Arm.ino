@@ -356,56 +356,9 @@ void setPositionalJoint(int ch, int targetAngle) {
     default: return;
   }
 
-  int start = *currentAnglePtr;
-  if (start == targetAngle) {
-    // Pulse servo to target angle to guarantee physical arm holds at base position even if software state already matched
-    pwm.setPWM(ch, 0, angleToPulse(targetAngle));
-    delay(150);
-    pwm.setPWM(ch, 0, STOP_PULSE);
-    return;
-  }
-
-  int stepDir = (targetAngle > start) ? 1 : -1;
-
-  for (int a = start; a != targetAngle; a += stepDir) {
-    pwm.setPWM(ch, 0, angleToPulse(a));
-
-    int distTraveled = abs(a - start);
-    int distRemaining = abs(targetAngle - a);
-    int edgeDist = min(distTraveled, distRemaining);
-
-    int stepDelay;
-    if (ch == CH_SHOULDER || ch == CH_ELBOW) {
-      // Heavy joints (Shoulder & Elbow): Gentle acceleration & deceleration to preserve balance
-      if (edgeDist < 4) {
-        stepDelay = 42; // Soft start & cushioned stop
-      } else if (edgeDist < 8) {
-        stepDelay = 34; // Smooth transition
-      } else if (edgeDist < 14) {
-        stepDelay = 28; // Controlled ramp
-      } else {
-        stepDelay = 24; // Smooth, balanced cruise (no violent flinging)
-      }
-    } else {
-      // Lighter joints (Wrist pitch & roll): Smooth and responsive
-      if (edgeDist < 4) {
-        stepDelay = 32;
-      } else if (edgeDist < 8) {
-        stepDelay = 24;
-      } else {
-        stepDelay = 18;
-      }
-    }
-    delay(stepDelay);
-  }
-
-  // Exact target position
+  // Fast direct target drive
   pwm.setPWM(ch, 0, angleToPulse(targetAngle));
-  // Settle hold: firm robotic damping to eliminate physical overshoot & vibration
-  delay(260);
-
-  // Cut PWM signal after reaching target to protect 5V rail / USB from stall current
-  pwm.setPWM(ch, 0, STOP_PULSE);
+  delay(350); // Robotic settle time
   *currentAnglePtr = targetAngle;
 }
 
@@ -656,37 +609,37 @@ void executeRetrieve() {
 }
 
 void testChannel0() {
-  Serial.println(F("TESTING_CH0_BASE..."));
-  rotateBaseSmooth(1, 300);
-  delay(1000);
-  rotateBaseSmooth(-1, 300);
+  Serial.println(F("TESTING_CH0_BASE (1000ms CW / CCW)..."));
+  rotateBaseSmooth(1, 1000);
+  delay(1200);
+  rotateBaseSmooth(-1, 1000);
   Serial.println(F("TEST_CH0_OK"));
 }
 
 void testChannel1() {
-  Serial.println(F("TESTING_CH1_SHOULDER..."));
-  setPositionalJoint(CH_SHOULDER, 100);
-  delay(1500);
+  Serial.println(F("TESTING_CH1_SHOULDER (135° -> 90° -> 135°)..."));
+  setPositionalJoint(CH_SHOULDER, 90);
+  delay(2000);
   setPositionalJoint(CH_SHOULDER, 135);
   Serial.println(F("TEST_CH1_OK"));
 }
 
 void testChannel2() {
-  Serial.println(F("TESTING_CH2_ELBOW..."));
-  setPositionalJoint(CH_ELBOW, 140);
-  delay(1500);
+  Serial.println(F("TESTING_CH2_ELBOW (180° -> 120° -> 180°)..."));
+  setPositionalJoint(CH_ELBOW, 120);
+  delay(2000);
   setPositionalJoint(CH_ELBOW, 180);
   Serial.println(F("TEST_CH2_OK"));
 }
 
 void testChannel012() {
-  Serial.println(F("STARTING_CH012_SWEEP_TEST..."));
+  Serial.println(F("STARTING_CH012_PHYSICAL_SWEEP_TEST..."));
   testChannel0();
-  delay(800);
+  delay(1000);
   testChannel1();
-  delay(800);
+  delay(1000);
   testChannel2();
-  Serial.println(F("TEST_CH012_COMPLETE"));
+  Serial.println(F("TEST012_OK"));
 }
 
 void printStatus() {
@@ -704,19 +657,31 @@ void setup() {
   Wire.begin();
   delay(100);
 
+  // Scan I2C Bus to verify PCA9685 connection
+  Serial.println(F("--- I2C BUS HARDWARE SCAN ---"));
+  byte error, address;
+  int nDevices = 0;
+  for (address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.print(F("[I2C] Found device at address 0x"));
+      if (address < 16) Serial.print(F("0"));
+      Serial.println(address, HEX);
+      nDevices++;
+    }
+  }
+  if (nDevices == 0) {
+    Serial.println(F("[!] CRITICAL WARNING: No I2C devices found! Check SDA (A4) and SCL (A5) wiring!"));
+  }
+
   pwm.begin();
-  pwm.setOscillatorFrequency(27000000);
+  pwm.setOscillatorFrequency(25000000); // Standard 25MHz PCA9685 internal oscillator
   pwm.setPWMFreq(SERVO_FREQ);
 
   stopAllMotors();
   currentArmState = STATE_DOCKED;
 
-  // BOOT RECOVERY (v1.3): the Uno resets whenever the backend opens the
-  // serial port and on power cycles. Restore the last persisted arm state so
-  // "no matter where the arm is" it first comes back to the resting home
-  // dock. If it was left blocked/busy or still holds the cardboard, retract
-  // and put the cardboard back BEFORE accepting commands. If it was already
-  // docked, the arm does not move at all.
   if (restoreState()) {
     if (cardInClaw || currentArmState != STATE_DOCKED) {
       executeRetrieve();
@@ -725,7 +690,7 @@ void setup() {
   currentArmState = STATE_DOCKED;
   persistState();
 
-  Serial.println(F("PostureGuard Firmware v1.7 Ready (Calibrated Gripper 30/-25, Zero-Rebound Base)."));
+  Serial.println(F("PostureGuard Firmware v1.8 Ready (Calibrated Gripper 30/-25, Zero-Rebound Base)."));
 }
 
 void loop() {

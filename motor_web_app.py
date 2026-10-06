@@ -40,28 +40,44 @@ CHANNEL_INFO = {
 }
 
 def detect_serial_port(requested=None):
-    if requested:
+    if requested and os.path.exists(requested):
         return requested
     ports = list(serial.tools.list_ports.comports())
+    # Prioritize USB / ACM serial adapters
     for p in ports:
-        if "ttyUSB" in p.device or "ttyACM" in p.device:
+        if "ttyACM" in p.device or "ttyUSB" in p.device:
             return p.device
     for p in ports:
         if p.device.upper() in ["COM13", "COM14"]:
             return p.device
+    # Avoid standard ttyS motherboard ports
+    usb_candidates = [p.device for p in ports if not p.device.startswith("/dev/ttyS")]
+    if usb_candidates:
+        return usb_candidates[0]
     if ports:
         return ports[0].device
-    return "/dev/ttyUSB1"
+    return "/dev/ttyACM0"
 
 class ArmHardwareManager:
-    def __init__(self, port, baud=115200):
+    def __init__(self, port=None, baud=115200):
         self.port = port
         self.baud = baud
         self.ser = None
         self.positions = {ch: info["default"] for ch, info in CHANNEL_INFO.items()}
         self.connected = False
 
+    def disconnect(self):
+        self.connected = False
+        if self.ser:
+            try:
+                self.ser.close()
+            except Exception:
+                pass
+            self.ser = None
+
     def connect(self):
+        target_port = self.port or detect_serial_port()
+        self.port = target_port
         print(f"Connecting to Arduino on {self.port} at {self.baud} baud...")
         try:
             self.ser = serial.Serial(self.port, self.baud, timeout=1.0)
@@ -77,8 +93,21 @@ class ArmHardwareManager:
             self.connected = False
             return False
 
-    def send_cmd(self, cmd, timeout=3.0):
-        if not self.ser or not self.ser.is_open:
+    def reconnect(self, port=None):
+        self.disconnect()
+        time.sleep(0.5)
+        self.port = port or detect_serial_port()
+        return self.connect()
+
+    def close(self):
+        self.disconnect()
+
+    def send_cmd(self, cmd, timeout=3.0, retry=True):
+        if not self.ser or not self.ser.is_open or not self.connected:
+            if retry:
+                print("[!] Serial port not open. Attempting auto-reconnect...")
+                if self.reconnect():
+                    return self.send_cmd(cmd, timeout=timeout, retry=False)
             return ["ERROR_SERIAL_CLOSED"]
 
         try:
@@ -92,12 +121,22 @@ class ArmHardwareManager:
                 if self.ser.in_waiting:
                     line = self.ser.readline().decode("ascii", errors="replace").strip()
                     if line:
-                        lines.append(line)
-                        if any(kw in line for kw in ["_OK", "STATE_", "ERROR_"]):
-                            break
+                        clean_line = line.replace('\x00', '').strip()
+                        if clean_line:
+                            lines.append(clean_line)
+                            if any(kw in clean_line for kw in ["_OK", "STATE_", "ERROR_"]):
+                                break
                 time.sleep(0.02)
-            return lines if lines else ["OK"]
+            ack_lines = [l for l in lines if any(kw in l for kw in ["_OK", "STATE_", "ERROR_"])]
+            return ack_lines if ack_lines else (lines[-1:] if lines else ["OK"])
         except Exception as e:
+            print(f"[!] Serial error during '{cmd}': {e}. Recovering...")
+            self.disconnect()
+            if retry:
+                time.sleep(1.0)
+                if self.reconnect():
+                    print("[+] Auto-reconnected after error! Retrying command...")
+                    return self.send_cmd(cmd, timeout=timeout, retry=False)
             return [f"ERROR: {e}"]
 
     def move_channel(self, ch, angle):
@@ -237,8 +276,11 @@ INDEX_HTML = """<!DOCTYPE html>
   <div class="container">
     <header>
       <h1>🤖 PostureGuard — Robotic Arm Studio</h1>
-      <div id="statusBadge" class="status-badge disconnected">
-        <span class="dot"></span> <span id="statusText">Checking...</span>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button id="reconnectBtn" onclick="reconnectSerial()" style="padding: 6px 12px; font-size: 0.82rem; background: #334155;">🔄 Reconnect Serial</button>
+        <div id="statusBadge" class="status-badge disconnected">
+          <span class="dot"></span> <span id="statusText">Checking...</span>
+        </div>
       </div>
     </header>
 
@@ -334,7 +376,10 @@ INDEX_HTML = """<!DOCTYPE html>
 
         <!-- Terminal Output Log -->
         <div class="card" style="flex-grow: 1;">
-          <div class="card-title">📟 Live Arduino Response Log</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div class="card-title" style="margin-bottom: 0;">📟 Live Arduino Response Log</div>
+            <button onclick="document.getElementById('logBox').innerHTML='<div class=\\'log-entry\\'><span class=\\'log-time\\'>[System]</span> Log cleared.</div>'" style="padding: 4px 10px; font-size: 0.8rem; background: var(--border); color: var(--text);">Clear Log</button>
+          </div>
           <div class="log-box" id="logBox">
             <div class="log-entry"><span class="log-time">[System]</span> Connected to Web Studio. Ready to send commands.</div>
           </div>
@@ -427,6 +472,36 @@ INDEX_HTML = """<!DOCTYPE html>
       });
     }
 
+    function reconnectSerial() {
+      addLog("Attempting to reconnect serial port...");
+      const btn = document.getElementById('reconnectBtn');
+      if (btn) {
+        btn.innerText = "Connecting...";
+        btn.disabled = true;
+      }
+      fetch('/api/reconnect', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (btn) {
+            btn.innerText = "🔄 Reconnect Serial";
+            btn.disabled = false;
+          }
+          if (data.connected) {
+            addLog(`[+] Reconnected successfully to ${data.port}!`);
+          } else {
+            addLog(`[!] Reconnection failed. Check USB cable and 5V power.`);
+          }
+          updateStatus();
+        })
+        .catch(err => {
+          if (btn) {
+            btn.innerText = "🔄 Reconnect Serial";
+            btn.disabled = false;
+          }
+          addLog(`[!] Reconnect error: ${err}`);
+        });
+    }
+
     setInterval(updateStatus, 3000);
     updateStatus();
   </script>
@@ -503,6 +578,15 @@ class WebStudioHandler(BaseHTTPRequestHandler):
 
             self._set_json_headers()
             self.wfile.write(json.dumps({"success": True, "response": resp}).encode("utf-8"))
+
+        elif parsed.path == "/api/reconnect":
+            success = ARM_HARDWARE.reconnect() if ARM_HARDWARE else False
+            self._set_json_headers()
+            self.wfile.write(json.dumps({
+                "success": success,
+                "connected": ARM_HARDWARE.connected if ARM_HARDWARE else False,
+                "port": ARM_HARDWARE.port if ARM_HARDWARE else None
+            }).encode("utf-8"))
         else:
             self.send_error(404, "Not Found")
 
