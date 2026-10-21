@@ -5,8 +5,8 @@
   "type": "module",
   "description": "PostureGuard React + Vite dashboard",
   "scripts": {
-    "dev": "node api.js && vite",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
     "preview": "vite preview",
     "test": "vitest run"
   },
