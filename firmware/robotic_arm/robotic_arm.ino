@@ -38,8 +38,8 @@
 #define BT_TX_PIN 11  // To HC-06 RXD (via resistor divider)
 #define BT_BAUD 9600
 
-// EEPROM Magic Identifier (bumped for 360 shoulder span support)
-#define EEPROM_MAGIC 0x4D473339UL // 'MG39'
+// EEPROM Magic Identifier (bumped for 275 deg shoulder home)
+#define EEPROM_MAGIC 0x4D47333AUL // 'MG3A'
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);

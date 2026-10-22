@@ -26,12 +26,12 @@
       "joint_name": "Shoulder Pitch",
       "type": "MG996R 360° Continuous",
       "direction": 1,
-      "offset_deg": 90.0,
-      "min_limit_deg": 20.0,
-      "max_limit_deg": 160.0,
+      "offset_deg": 275.0,
+      "min_limit_deg": 0.0,
+      "max_limit_deg": 360.0,
       "neutral_pulse_us": 1500,
       "calibrated": true,
-      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. 360 span (+180 offset)."
     },
     {
       "channel": 2,
@@ -85,7 +85,7 @@
   "calibrated_poses": {
     "HOME": {
       "description": "Compact upright resting pose, minimal gravity load, table clearance",
-      "angles": [90.0, 90.0, 120.0, 90.0, 90.0, 20.0]
+      "angles": [90.0, 275.0, 120.0, 90.0, 90.0, 20.0]
     },
     "PICK": {
       "description": "Reaching down to pick payload puck at Station A (45°), perpendicular jaw approach",

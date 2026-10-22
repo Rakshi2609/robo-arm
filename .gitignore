@@ -16,7 +16,6 @@ build/
 build/
 
 # IDE & Editor files
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -30,3 +29,5 @@ scratch/
 .Rhistory
 firmware/robotic_arm/robotic_arm.ino.bak
 
+config.bat
+node_modules
