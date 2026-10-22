@@ -1,0 +1,103 @@
+{
+  "manipulator": "3D-Printed RoboWings 6-DOF Robotic Arm",
+  "link_dimensions_mm": {
+    "base_pedestal": 65.0,
+    "shoulder_upper_arm": 125.0,
+    "elbow_forearm": 125.0,
+    "wrist_pivot": 60.0,
+    "gripper_finger": 45.0,
+    "total_tool_length": 105.0
+  },
+  "joints": [
+    {
+      "channel": 0,
+      "joint_name": "Base Yaw (Waist)",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 0.0,
+      "max_limit_deg": 180.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    },
+    {
+      "channel": 1,
+      "joint_name": "Shoulder Pitch",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 20.0,
+      "max_limit_deg": 160.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    },
+    {
+      "channel": 2,
+      "joint_name": "Elbow Pitch",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 25.0,
+      "max_limit_deg": 155.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    },
+    {
+      "channel": 3,
+      "joint_name": "Wrist Pitch",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 20.0,
+      "max_limit_deg": 160.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    },
+    {
+      "channel": 4,
+      "joint_name": "Wrist Roll",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 0.0,
+      "max_limit_deg": 180.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    },
+    {
+      "channel": 5,
+      "joint_name": "Gripper Claw",
+      "type": "MG996R 360° Continuous",
+      "direction": 1,
+      "offset_deg": 90.0,
+      "min_limit_deg": 15.0,
+      "max_limit_deg": 85.0,
+      "neutral_pulse_us": 1500,
+      "calibrated": true,
+      "notes": "MG996R 360° Continuous. 1500us neutral stop. Timed rotational bursts."
+    }
+  ],
+  "calibrated_poses": {
+    "HOME": {
+      "description": "Compact upright resting pose, minimal gravity load, table clearance",
+      "angles": [90.0, 90.0, 120.0, 90.0, 90.0, 20.0]
+    },
+    "PICK": {
+      "description": "Reaching down to pick payload puck at Station A (45°), perpendicular jaw approach",
+      "angles": [45.0, 55.0, 60.0, 115.0, 90.0, 20.0]
+    },
+    "LIFT": {
+      "description": "Vertical clearance lift, payload clamped (80°), steady orientation",
+      "angles": [45.0, 85.0, 95.0, 90.0, 90.0, 80.0]
+    },
+    "DROP": {
+      "description": "Descent into drop bin at Station B (135°), claw holds until arrival then opens",
+      "angles": [135.0, 60.0, 65.0, 110.0, 90.0, 80.0]
+    }
+  }
+}
