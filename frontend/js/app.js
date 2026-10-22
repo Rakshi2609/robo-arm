@@ -7,8 +7,8 @@ class RoboticArmApp {
   constructor() {
     this.ws = null;
     this.state = {
-      cur: [90.0, 90.0, 90.0, 90.0, 90.0, 20.0],
-      tgt: [90.0, 90.0, 90.0, 90.0, 90.0, 20.0],
+      cur: [90.0, 90.0, 120.0, 90.0, 90.0, 20.0],
+      tgt: [90.0, 90.0, 120.0, 90.0, 90.0, 20.0],
       active: [false, false, false, false, false, false],
       attached: false,
       speed: 70.0,
@@ -56,6 +56,7 @@ class RoboticArmApp {
     this.setupUIListeners();
     this.loadPorts();
     this.loadInventory();
+    this.startAutoSync2s();
   }
 
   /* ========================================================================
@@ -495,12 +496,12 @@ class RoboticArmApp {
         // Radial SVG gauge
         this.updateGauge(i, curAngle);
 
-        // Slider (only sync if user is not currently dragging it and release grace window has passed)
+        // Slider: synchronize dashboard to show real motor angle (curAngle) without forcing motor
         const nowMs = performance.now();
         if (!this.isDraggingSlider[i] && nowMs >= this.sliderReleaseGraceMs[i]) {
           const slider = document.getElementById(`slider-${i}`);
-          if (slider && document.activeElement !== slider) {
-            slider.value = tgtAngle;
+          if (slider) {
+            slider.value = curAngle;
           }
         }
 
@@ -928,7 +929,18 @@ class RoboticArmApp {
     }
   }
 
-  async syncMotorAngles() {
+  startAutoSync2s() {
+    if (this.autoSyncTimer) clearInterval(this.autoSyncTimer);
+    this.autoSyncTimer = setInterval(async () => {
+      // Don't interrupt if user is actively holding/dragging a slider
+      if (this.isDraggingSlider && this.isDraggingSlider.some(d => d === true)) {
+        return;
+      }
+      await this.syncMotorAngles(false); // sync without toast spam
+    }, 2000);
+  }
+
+  async syncMotorAngles(showToastNotification = true) {
     try {
       const res = await fetch('/api/status');
       if (!res.ok) throw new Error('Failed to query status');
@@ -938,11 +950,12 @@ class RoboticArmApp {
           const val = data.cur[i] !== undefined ? data.cur[i] : 90.0;
           this.state.cur[i] = val;
           this.state.tgt[i] = val;
-          this.isDraggingSlider[i] = false;
-          this.sliderReleaseGraceMs[i] = 0;
 
+          // Force slider position to match real motor
           const slider = document.getElementById(`slider-${i}`);
-          if (slider) slider.value = val;
+          if (slider && (!this.isDraggingSlider || !this.isDraggingSlider[i])) {
+            slider.value = val;
+          }
 
           const valEl = document.getElementById(`val-${i}`);
           if (valEl) valEl.textContent = val.toFixed(2);
@@ -957,12 +970,27 @@ class RoboticArmApp {
           this.updateDigitalTwin(this.state.cur);
         }
 
-        const msg = `Synced! [Base: ${data.cur[0].toFixed(1)}°, Shldr: ${data.cur[1].toFixed(1)}°, Elb: ${data.cur[2].toFixed(1)}°, WrP: ${data.cur[3].toFixed(1)}°, WrR: ${data.cur[4].toFixed(1)}°, Claw: ${data.cur[5].toFixed(1)}°]`;
-        this.showToast(`🔄 ${msg}`);
+        // Visual subtle blink on auto-sync badge
+        const badge = document.getElementById('autoSyncBadge');
+        if (badge) {
+          badge.style.opacity = '1';
+          badge.style.borderColor = '#10b981';
+          setTimeout(() => {
+            badge.style.opacity = '0.75';
+            badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+          }, 350);
+        }
+
+        if (showToastNotification) {
+          const msg = `Synced! [Base: ${data.cur[0].toFixed(1)}°, Shldr: ${data.cur[1].toFixed(1)}°, Elb: ${data.cur[2].toFixed(1)}°, WrP: ${data.cur[3].toFixed(1)}°, WrR: ${data.cur[4].toFixed(1)}°, Claw: ${data.cur[5].toFixed(1)}°]`;
+          this.showToast(`🔄 ${msg}`);
+        }
         return data.cur;
       }
     } catch (e) {
-      this.showToast(`❌ Sync Error: ${e.message}`);
+      if (showToastNotification) {
+        this.showToast(`❌ Sync Error: ${e.message}`);
+      }
     }
     return null;
   }

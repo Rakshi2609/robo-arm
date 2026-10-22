@@ -475,9 +475,12 @@
         <h2>🎛️ Exact Live Motor Positions & Independent Channel Control (CH 0 – CH 5)</h2>
         <p>High-Precision 50Hz Real-Time Angle Telemetry // Direct Pulse-Width Timing // Continuous Holding Torque</p>
       </div>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="autoSyncBadge" class="mono-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 4px 8px; border-radius: 4px;" title="Automatically syncing dashboard to real motor angles every 2 seconds without forcing motors">
+          ⚡ Auto-Sync (2s): ACTIVE
+        </span>
         <button id="syncMotorAnglesBtn" class="btn btn-sm btn-primary" style="font-weight: 700; background: #4f46e5; color: white;" title="Query live motor hardware and synchronize all slider values to actual physical angles">
-          🔄 Sync with Motor
+          🔄 Sync Now
         </button>
         <button id="copyAnglesBtn" class="btn btn-sm btn-outline" style="font-weight: 600;" title="Copy current joint angles formatted as text to clipboard">
           📋 Copy Real Angles
