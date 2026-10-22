@@ -59,8 +59,8 @@ struct JointCalibration {
 // Default Factory Calibration Table stored in Flash (PROGMEM)
 // Calibrated for MG996R 360-Degree Continuous Rotation Servos
 const JointCalibration DEFAULT_JOINTS[NUM_JOINTS] PROGMEM = {
-  // CH 0: Base / Waist Yaw (MG996R 360)
-  {0, "Base Yaw",        +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true, 180.0f, true},
+  // CH 0: Base / Waist Yaw (MG996R 360) - Smooth 75 deg/s radar sweep
+  {0, "Base Yaw",        +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true,  75.0f, true},
 
   // CH 1: Shoulder Pitch (MG996R 360)
   {1, "Shoulder Pitch",  +1, 0.0f,  20.0f, 160.0f,  500, 2500, 1500, true, 140.0f, true},
@@ -86,13 +86,19 @@ struct ArmPose {
   float angles[NUM_JOINTS]; // [Base, Shoulder, Elbow, WristPitch, WristRoll, Claw]
 };
 
-// POSE 1: HOME (All joints at 90 deg neutral 1500us stationary baseline)
+// POSE 1: HOME (All joints at 90 deg neutral baseline)
 const ArmPose POSE_HOME PROGMEM = {
   "HOME",
   {90.0f, 90.0f, 90.0f, 90.0f, 90.0f, 90.0f}
 };
 
-// POSE 2: PICK
+// POSE 2: DETECTED REACH (Move Pose when object is detected in 15-25cm range)
+const ArmPose POSE_DETECTED_REACH PROGMEM = {
+  "REACH",
+  {90.0f, 95.0f, 97.5f, 94.0f, 172.0f, 90.0f}
+};
+
+// POSE 3: PICK
 const ArmPose POSE_PICK PROGMEM = {
   "PICK",
   {45.0f, 55.0f, 60.0f, 115.0f, 90.0f, 20.0f}

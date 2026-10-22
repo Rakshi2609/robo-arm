@@ -31,15 +31,15 @@
 // Ultrasonic Sensor Pins
 #define TRIG_PIN 8
 #define ECHO_PIN 9
-#define SONAR_INTERVAL_MS 150
+#define SONAR_INTERVAL_MS 60
 
 // HC-06 Bluetooth Pins
 #define BT_RX_PIN 10  // To HC-06 TXD
 #define BT_TX_PIN 11  // To HC-06 RXD (via resistor divider)
 #define BT_BAUD 9600
 
-// EEPROM Magic Identifier (bumped to force fresh factory defaults for MG996R 360)
-#define EEPROM_MAGIC 0x4D473336UL // 'MG36'
+// EEPROM Magic Identifier (bumped for autonomous radar config)
+#define EEPROM_MAGIC 0x4D473337UL // 'MG37'
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);
@@ -89,6 +89,22 @@ enum RoutineState {
   ROUTINE_RETRACT,
   ROUTINE_HOME
 };
+
+// Standalone Autonomous Radar & Reach Mode (Runs on Wall Charger)
+bool autoRadarEnabled = true;
+enum AutoRadarState {
+  RADAR_INIT_WAIT,   // Startup 2-second stabilization
+  RADAR_SWEEP_CW,    // Base sweeping clockwise towards 170° (+80°)
+  RADAR_SWEEP_CCW,   // Base sweeping counter-clockwise towards 10° (-80°)
+  RADAR_DETECTED,    // Object in 15-25cm! Arm transitioning to Move Pose
+  RADAR_HOLD,        // Holding Move Pose while object remains in front
+  RADAR_RETRACT      // Object removed! Returning to Home Pose before resuming sweep
+};
+
+AutoRadarState radarState = RADAR_INIT_WAIT;
+unsigned long radarStateStartMs = 0;
+int consecutiveDetectCount = 0;
+int consecutiveClearCount = 0;
 
 RoutineState currentRoutine = ROUTINE_IDLE;
 unsigned long routineStepStartMs = 0;
@@ -658,9 +674,23 @@ void processCommand(char* cmd) {
     printStatus();
   }
   else if (strcmp(cmd, "DETACH") == 0 || strcmp(cmd, "STOP") == 0 || strcmp(cmd, "HALT") == 0) {
+    autoRadarEnabled = false;
+    stopContinuousServo(0);
     detachAll();
     outAck(F("detached"));
     printStatus();
+  }
+  else if (strcmp(cmd, "AUTO") == 0 || strcmp(cmd, "AUTORADAR ON") == 0 || strcmp(cmd, "RADAR") == 0) {
+    autoRadarEnabled = true;
+    currentRoutine = ROUTINE_IDLE;
+    radarState = RADAR_INIT_WAIT;
+    radarStateStartMs = millis();
+    outAck(F("auto_radar_on"));
+  }
+  else if (strcmp(cmd, "MANUAL") == 0 || strcmp(cmd, "AUTORADAR OFF") == 0) {
+    autoRadarEnabled = false;
+    stopContinuousServo(0);
+    outAck(F("auto_radar_off"));
   }
   else if (strncmp(cmd, "ISOLATE ", 8) == 0) {
     int ch = atoi(cmd + 8);
@@ -984,6 +1014,11 @@ void setup() {
   lastSonarMs = millis();
   lastBroadcastMs = millis();
 
+  // Initialize Standalone Autonomous Radar & Reach Routine
+  autoRadarEnabled = true;
+  radarState = RADAR_INIT_WAIT;
+  radarStateStartMs = millis();
+
   outAck(F("init_complete"));
   printStatus();
 }
@@ -1035,6 +1070,113 @@ void loop() {
   if (now - lastSonarMs >= SONAR_INTERVAL_MS) {
     lastSonarMs = now;
     lastDistanceCm = readUltrasonicCm();
+  }
+
+  // 3b. Standalone Autonomous Radar & Reach Routine (Runs on Wall Charger)
+  if (autoRadarEnabled && currentRoutine == ROUTINE_IDLE && pcaDetected) {
+    switch (radarState) {
+      case RADAR_INIT_WAIT:
+        // Wait 2.0s after power-on to let servos stabilize at Home
+        if (now - radarStateStartMs >= 2000) {
+          applyPose(POSE_HOME);
+          radarState = RADAR_SWEEP_CW;
+          radarStateStartMs = now;
+          consecutiveDetectCount = 0;
+          consecutiveClearCount = 0;
+          commandSetAngle(0, 170.0f, false);
+        }
+        break;
+
+      case RADAR_SWEEP_CW:
+      case RADAR_SWEEP_CCW: {
+        // Active Obstacle Detection (15 cm to 25 cm)
+        if (lastDistanceCm >= 15.0f && lastDistanceCm <= 25.0f) {
+          consecutiveDetectCount++;
+          if (consecutiveDetectCount >= 2) {
+            // TARGET DETECTED! Halt base rotation instantly
+            stopContinuousServo(0);
+            jointState[0].targetAngle = jointState[0].currentAngle;
+            radarState = RADAR_DETECTED;
+            radarStateStartMs = now;
+            consecutiveDetectCount = 0;
+            consecutiveClearCount = 0;
+
+            // Command arm to MOVE POSE
+            commandSetAngle(1, 95.0f, false);  // Shoulder
+            commandSetAngle(2, 97.5f, false);  // Elbow
+            commandSetAngle(3, 94.0f, false);  // Wrist Pitch
+            commandSetAngle(4, 172.0f, false); // Wrist Roll
+            commandSetAngle(5, 90.0f, false);  // Claw
+            break;
+          }
+        } else {
+          consecutiveDetectCount = 0;
+        }
+
+        // Base Sweeping Management (+-80° -> 10° to 170°)
+        if (radarState == RADAR_SWEEP_CW) {
+          if (!jointState[0].isMoving || jointState[0].currentAngle >= 168.0f) {
+            radarState = RADAR_SWEEP_CCW;
+            radarStateStartMs = now;
+            commandSetAngle(0, 10.0f, false);
+          }
+        } else if (radarState == RADAR_SWEEP_CCW) {
+          if (!jointState[0].isMoving || jointState[0].currentAngle <= 12.0f) {
+            radarState = RADAR_SWEEP_CW;
+            radarStateStartMs = now;
+            commandSetAngle(0, 170.0f, false);
+          }
+        }
+        break;
+      }
+
+      case RADAR_DETECTED:
+        // Allow 800ms for arm to reach and settle at target pose
+        if (now - radarStateStartMs >= 800) {
+          radarState = RADAR_HOLD;
+          radarStateStartMs = now;
+          consecutiveClearCount = 0;
+        }
+        break;
+
+      case RADAR_HOLD:
+        // Hold pose while object remains in front of sensor
+        // If object is removed (outside 13-27cm or -1 for 4 consecutive readings)
+        if (lastDistanceCm < 13.0f || lastDistanceCm > 27.0f || lastDistanceCm < 0.0f) {
+          consecutiveClearCount++;
+          if (consecutiveClearCount >= 4) { // ~240ms of clear readings
+            radarState = RADAR_RETRACT;
+            radarStateStartMs = now;
+            consecutiveClearCount = 0;
+            consecutiveDetectCount = 0;
+
+            // Return arm joints to HOME POSE
+            commandSetAngle(1, 90.0f, false);
+            commandSetAngle(2, 90.0f, false);
+            commandSetAngle(3, 90.0f, false);
+            commandSetAngle(4, 90.0f, false);
+            commandSetAngle(5, 90.0f, false);
+          }
+        } else {
+          consecutiveClearCount = 0;
+        }
+        break;
+
+      case RADAR_RETRACT:
+        // Allow 800ms for arm to return safely home before resuming sweep
+        if (now - radarStateStartMs >= 800) {
+          // Resume sweep in the appropriate direction
+          if (jointState[0].currentAngle < 165.0f) {
+            radarState = RADAR_SWEEP_CW;
+            commandSetAngle(0, 170.0f, false);
+          } else {
+            radarState = RADAR_SWEEP_CCW;
+            commandSetAngle(0, 10.0f, false);
+          }
+          radarStateStartMs = now;
+        }
+        break;
+    }
   }
 
   // 4. Autonomous Pick & Drop State Machine with Target-Arrival & Safety Timeout
