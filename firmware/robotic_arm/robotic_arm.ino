@@ -38,8 +38,8 @@
 #define BT_TX_PIN 11  // To HC-06 RXD (via resistor divider)
 #define BT_BAUD 9600
 
-// EEPROM Magic Identifier (bumped for slow gentle continuous config)
-#define EEPROM_MAGIC 0x4D473338UL // 'MG38'
+// EEPROM Magic Identifier (bumped for 360 shoulder span support)
+#define EEPROM_MAGIC 0x4D473339UL // 'MG39'
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);
@@ -1125,7 +1125,7 @@ void loop() {
             consecutiveClearCount = 0;
 
             // Command arm to MOVE POSE
-            commandSetAngle(1, 95.0f, false);  // Shoulder
+            commandSetAngle(1, 275.0f, false); // Shoulder (between 180° and 360°)
             commandSetAngle(2, 97.5f, false);  // Elbow
             commandSetAngle(3, 94.0f, false);  // Wrist Pitch
             commandSetAngle(4, 172.0f, false); // Wrist Roll
@@ -1174,11 +1174,11 @@ void loop() {
             consecutiveDetectCount = 0;
 
             // Return arm joints to HOME POSE
-            commandSetAngle(1, 90.0f, false);
-            commandSetAngle(2, 90.0f, false);
+            commandSetAngle(1, 270.0f, false); // Shoulder (between 180° and 360°)
+            commandSetAngle(2, 120.0f, false); // Elbow
             commandSetAngle(3, 90.0f, false);
             commandSetAngle(4, 90.0f, false);
-            commandSetAngle(5, 90.0f, false);
+            commandSetAngle(5, 20.0f, false);
           }
         } else {
           consecutiveClearCount = 0;

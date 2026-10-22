@@ -7,8 +7,8 @@ class RoboticArmApp {
   constructor() {
     this.ws = null;
     this.state = {
-      cur: [90.0, 90.0, 120.0, 90.0, 90.0, 20.0],
-      tgt: [90.0, 90.0, 120.0, 90.0, 90.0, 20.0],
+      cur: [90.0, 270.0, 120.0, 90.0, 90.0, 20.0],
+      tgt: [90.0, 270.0, 120.0, 90.0, 90.0, 20.0],
       active: [false, false, false, false, false, false],
       attached: false,
       speed: 70.0,
@@ -20,7 +20,8 @@ class RoboticArmApp {
     };
 
     this.isDraggingSlider = [false, false, false, false, false, false];
-    this.channelMaxAngles = [180.0, 180.0, 180.0, 180.0, 180.0, 180.0];
+    this.channelMinAngles = [0.0, 180.0, 0.0, 0.0, 0.0, 0.0];
+    this.channelMaxAngles = [180.0, 360.0, 180.0, 180.0, 180.0, 180.0];
     this.sliderThrottleTimers = [null, null, null, null, null, null];
     this.sliderLastSentMs = [0, 0, 0, 0, 0, 0];
     this.sliderReleaseGraceMs = [0, 0, 0, 0, 0, 0];

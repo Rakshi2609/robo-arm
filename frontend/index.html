@@ -553,7 +553,7 @@
         </div>
       </div>
 
-      <!-- CH 1: Shoulder Joint (Pitch) - ACTIVE & POWERED -->
+      <!-- CH 1: Shoulder Joint (Pitch) - ACTIVE & POWERED (360° SPAN) -->
       <div class="motor-card" id="motor-card-1">
         <div class="motor-card-header">
           <div class="ch-tag">
@@ -562,7 +562,7 @@
             <select class="range-select" onchange="window.app.setChannelRange(1, this.value)" title="Servo Rotation Span">
               <option value="180">0-180°</option>
               <option value="270">0-270°</option>
-              <option value="360">0-360°</option>
+              <option value="360" selected>0-360°</option>
             </select>
           </div>
           <div class="action-buttons">
@@ -581,16 +581,16 @@
           </div>
           <div class="angle-readout-box">
             <div class="angle-number-wrap">
-              <span class="angle-number" id="val-1">90.00</span>
+              <span class="angle-number" id="val-1">270.00</span>
               <span class="angle-unit">°</span>
             </div>
-            <div class="target-readout">Target: <span id="tgt-1">90.00</span>°</div>
+            <div class="target-readout">Target: <span id="tgt-1">270.00</span>°</div>
             <div class="pulse-readout" id="pulse-1">~1500 µs</div>
           </div>
         </div>
 
         <div class="slider-container">
-          <input type="range" class="servo-range" id="slider-1" min="0" max="180" step="0.5" value="90">
+          <input type="range" class="servo-range" id="slider-1" min="180" max="360" step="0.5" value="270">
         </div>
 
         <div class="step-btn-group">
@@ -604,9 +604,9 @@
 
         <div class="card-actions-row">
           <div class="preset-pills">
-            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 55)">Reach 55°</button>
-            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 90)">Upright 90°</button>
-            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 85)">Lift 85°</button>
+            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 235)">Reach 235°</button>
+            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 270)">Upright 270°</button>
+            <button class="preset-pill-btn" onclick="window.app.setChannelAngle(1, 275)">Target 275°</button>
           </div>
           <div class="action-buttons">
             <button class="btn btn-xs btn-warning" onclick="window.app.holdChannel(1)" title="Lock position midway">🛑 Hold</button>

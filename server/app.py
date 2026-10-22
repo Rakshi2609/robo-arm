@@ -299,7 +299,8 @@ async def toggle_simulation(enable: bool = True):
 async def set_servo(cmd: ServoCommand):
     if not (0 <= cmd.channel < 6):
         raise HTTPException(status_code=400, detail="Channel must be 0 to 5")
-    angle = max(0.0, min(180.0, float(cmd.angle)))
+    max_angle = 360.0 if cmd.channel in [0, 1, 4] else 180.0
+    angle = max(0.0, min(max_angle, float(cmd.angle)))
     success = serial_mgr.send_raw(f"SET {cmd.channel} {angle:.2f}")
     return {"success": success, "channel": cmd.channel, "angle": angle}
 

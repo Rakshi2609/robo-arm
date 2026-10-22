@@ -23,12 +23,14 @@ else
   fi
 fi
 
+SKETCH_PATH="${2:-$DIR/firmware/robotic_arm}"
+
 echo "=== Uploading Robotic Arm Firmware to Arduino Uno ==="
 echo "Port: $PORT"
 echo "Board: $FQBN"
-echo "Firmware path: $DIR/firmware/robotic_arm"
+echo "Firmware path: $SKETCH_PATH"
 
-if [ ! -f "$ARDUINO_CLI" ]; then
+if ! command -v "$ARDUINO_CLI" >/dev/null 2>&1 && [ ! -f "$ARDUINO_CLI" ]; then
   ARDUINO_CLI="arduino-cli"
 fi
 
@@ -41,8 +43,8 @@ if curl -s -f http://127.0.0.1:8000/api/status >/dev/null 2>&1; then
   DASHBOARD_WAS_ONLINE=true
 fi
 
-"$ARDUINO_CLI" compile --fqbn "$FQBN" "$DIR/firmware/robotic_arm"
-"$ARDUINO_CLI" upload -p "$PORT" --fqbn "$FQBN" "$DIR/firmware/robotic_arm"
+"$ARDUINO_CLI" compile --fqbn "$FQBN" "$SKETCH_PATH"
+"$ARDUINO_CLI" upload -p "$PORT" --fqbn "$FQBN" "$SKETCH_PATH"
 
 if [ "$DASHBOARD_WAS_ONLINE" = true ]; then
   echo "Reconnecting dashboard server to $PORT..."
