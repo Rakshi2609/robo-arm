@@ -105,52 +105,62 @@ void moveJoint(int ch, float targetAngle) {
 
   bool cw = (delta > 0.0f);
 
-  // Slow, gentle pulse offsets tailored for MG996R 360 continuous servos:
-  // Smaller offset = slower and gentler rotation without violent jerks!
-  // Neutral stop is 1500 us; deadband is ~+-20 us.
-  uint16_t offsetUs = 60;
-  float speedDps = 20.0f; // degrees per second
+  // Controlled pulse offsets for MG996R 360 continuous servos:
+  // Must be outside the ~50-80us deadband so gears reliably engage,
+  // but well below max (+-450us) so motion remains calm and controlled.
+  uint16_t offsetUs = 140;
+  float speedDps = 28.0f; // degrees per second
 
   switch (ch) {
     case CH_BASE:
-      offsetUs = 55;        // Slow, calm base rotation
-      speedDps = 18.0f;     // ~18 deg/s
+      offsetUs = 150;           // Steady, smooth turntable sweep
+      speedDps = 28.0f;
       break;
     case CH_SHOULDER:
-      offsetUs = cw ? 135 : 60; // Lifting needs torque against gravity, lowering is gentle
-      speedDps = 20.0f;
+      offsetUs = cw ? 260 : 130;// 260us to lift against arm weight, 130us to lower
+      speedDps = cw ? 22.0f : 32.0f;
       break;
     case CH_ELBOW:
-      offsetUs = cw ? 125 : 60; // Lifting needs torque against forearm, lowering is gentle
-      speedDps = 20.0f;
+      offsetUs = cw ? 240 : 130;// 240us to lift against forearm weight, 130us to lower
+      speedDps = cw ? 22.0f : 32.0f;
       break;
     case CH_WRIST_PITCH:
-      offsetUs = 60;
-      speedDps = 25.0f;
-      break;
-    case CH_WRIST_ROLL:
-      offsetUs = 65;
+      offsetUs = 140;
       speedDps = 30.0f;
       break;
-    case CH_CLAW:
-      offsetUs = 70;
+    case CH_WRIST_ROLL:
+      offsetUs = 140;
       speedDps = 35.0f;
+      break;
+    case CH_CLAW:
+      offsetUs = 150;
+      speedDps = 40.0f;
       break;
   }
 
-  // Calculate run duration in milliseconds based on slow speed
+  // Calculate run duration in milliseconds based on calibrated speed
   unsigned long durationMs = (unsigned long)((fabs(delta) / speedDps) * 1000.0f);
-  if (durationMs < 60) durationMs = 60; // Minimum pulse to engage gears
+  if (durationMs < 80) durationMs = 80; // Minimum duration to overcome static gear friction
 
   joints[ch].motionStartMs = millis();
   joints[ch].motionEndMs = joints[ch].motionStartMs + durationMs;
   joints[ch].isMoving = true;
 
-  // Apply slow calibrated pulse
+  // Apply calibrated drive pulse
   uint16_t pulseUs = cw ? (PULSE_NEUTRAL_US + offsetUs) : (PULSE_NEUTRAL_US - offsetUs);
   if (pcaFound) {
     pwm.setPWM(ch, 0, usToTicks(pulseUs));
   }
+
+  Serial.print(F("[MOTOR] CH "));
+  Serial.print(ch);
+  Serial.print(F(" -> "));
+  Serial.print(targetAngle, 1);
+  Serial.print(F(" deg ("));
+  Serial.print(durationMs);
+  Serial.print(F(" ms, pulse: "));
+  Serial.print(pulseUs);
+  Serial.println(F(" us)"));
 }
 
 // Update timed movements for all joints
@@ -161,6 +171,9 @@ void updateJoints() {
       if (now >= joints[ch].motionEndMs) {
         joints[ch].currentAngle = joints[ch].targetAngle;
         stopJoint(ch);
+        Serial.print(F("[STOP] CH "));
+        Serial.print(ch);
+        Serial.println(F(" reached target."));
       } else {
         unsigned long elapsed = now - joints[ch].motionStartMs;
         unsigned long total = joints[ch].motionEndMs - joints[ch].motionStartMs;
@@ -168,11 +181,6 @@ void updateJoints() {
           float frac = (float)elapsed / (float)total;
           joints[ch].currentAngle = joints[ch].startAngle + frac * (joints[ch].targetAngle - joints[ch].startAngle);
         }
-      }
-    } else {
-      // Maintain neutral holding pulse
-      if (pcaFound) {
-        pwm.setPWM(ch, 0, usToTicks(PULSE_NEUTRAL_US));
       }
     }
   }
