@@ -57,25 +57,25 @@ struct JointCalibration {
 #include <avr/pgmspace.h>
 
 // Default Factory Calibration Table stored in Flash (PROGMEM)
-// Calibrated for MG996R 360-Degree Continuous Rotation Servos
+// Calibrated for slow, smooth, calm motion with MG996R 360 Servos
 const JointCalibration DEFAULT_JOINTS[NUM_JOINTS] PROGMEM = {
-  // CH 0: Base / Waist Yaw (MG996R 360) - Smooth 75 deg/s radar sweep
-  {0, "Base Yaw",        +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true,  75.0f, true},
+  // CH 0: Base / Waist Yaw - Slow, calm radar sweep (~20 deg/s)
+  {0, "Base Yaw",        +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true,  20.0f, true},
 
-  // CH 1: Shoulder Pitch (MG996R 360)
-  {1, "Shoulder Pitch",  +1, 0.0f,  20.0f, 160.0f,  500, 2500, 1500, true, 140.0f, true},
+  // CH 1: Shoulder Pitch - Controlled slow movement (~25 deg/s)
+  {1, "Shoulder Pitch",  +1, 0.0f,  20.0f, 160.0f,  500, 2500, 1500, true,  25.0f, true},
 
-  // CH 2: Elbow Pitch (MG996R 360)
-  {2, "Elbow Pitch",     +1, 0.0f,  25.0f, 155.0f,  500, 2500, 1500, true, 160.0f, true},
+  // CH 2: Elbow Pitch - Controlled slow movement (~25 deg/s)
+  {2, "Elbow Pitch",     +1, 0.0f,  25.0f, 155.0f,  500, 2500, 1500, true,  25.0f, true},
 
-  // CH 3: Wrist Pitch (MG996R 360)
-  {3, "Wrist Pitch",     +1, 0.0f,  20.0f, 160.0f,  500, 2500, 1500, true, 180.0f, true},
+  // CH 3: Wrist Pitch - Gentle speed (~30 deg/s)
+  {3, "Wrist Pitch",     +1, 0.0f,  20.0f, 160.0f,  500, 2500, 1500, true,  30.0f, true},
 
-  // CH 4: Wrist Roll (MG996R 360)
-  {4, "Wrist Roll",      +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true, 180.0f, true},
+  // CH 4: Wrist Roll - Gentle speed (~35 deg/s)
+  {4, "Wrist Roll",      +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true,  35.0f, true},
 
-  // CH 5: Gripper Claw (MG996R 360)
-  {5, "Gripper Claw",    +1, 0.0f,  15.0f,  85.0f,  500, 2500, 1500, true, 200.0f, true}
+  // CH 5: Gripper Claw - Controlled speed (~40 deg/s)
+  {5, "Gripper Claw",    +1, 0.0f,  15.0f,  85.0f,  500, 2500, 1500, true,  40.0f, true}
 };
 
 // ============================================================================

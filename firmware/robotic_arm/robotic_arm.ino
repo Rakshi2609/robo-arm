@@ -38,8 +38,8 @@
 #define BT_TX_PIN 11  // To HC-06 RXD (via resistor divider)
 #define BT_BAUD 9600
 
-// EEPROM Magic Identifier (bumped for autonomous radar config)
-#define EEPROM_MAGIC 0x4D473337UL // 'MG37'
+// EEPROM Magic Identifier (bumped for slow gentle continuous config)
+#define EEPROM_MAGIC 0x4D473338UL // 'MG38'
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);
 SoftwareSerial btSerial(BT_RX_PIN, BT_TX_PIN);
@@ -64,7 +64,7 @@ struct JointState {
 
 JointState jointState[NUM_JOINTS];
 
-float moveSpeed = 65.0f; // Global trajectory speed in degrees per second
+float moveSpeed = 25.0f; // Global trajectory speed in degrees per second (calm & slow)
 unsigned long lastUpdateMs = 0;
 unsigned long lastBroadcastMs = 0;
 unsigned long lastPcaRetryMs = 0;
@@ -281,11 +281,36 @@ void commandSetAngle(int ch, float targetJointAngle, bool immediate = false) {
     bool cw = (delta > 0.0f);
     if (joints[ch].direction < 0) cw = !cw;
 
+    // Tailored pulse offsets for 360 continuous servos
+    // Lower offset = slower, gentler rotation without violent jerking
+    // Typical MG996R deadband is +-20us around centerPulseUs (1500us)
+    uint16_t offsetUs = 60; // Default gentle speed
+
+    if (ch == 0) {
+      // Base: slow, smooth, calm radar sweep (~20 deg/s)
+      offsetUs = 55;
+    } else if (ch == 1) {
+      // Shoulder: lifting requires torque against arm weight, lowering is gentle
+      offsetUs = cw ? 140 : 60;
+    } else if (ch == 2) {
+      // Elbow: lifting requires torque against forearm, lowering is gentle
+      offsetUs = cw ? 130 : 60;
+    } else if (ch == 3) {
+      // Wrist Pitch
+      offsetUs = 65;
+    } else if (ch == 4) {
+      // Wrist Roll
+      offsetUs = 65;
+    } else if (ch == 5) {
+      // Gripper Claw
+      offsetUs = 70;
+    }
+
     // Calculate run duration in ms based on calibrated speed
-    float spd = (joints[ch].speedDps > 10.0f) ? joints[ch].speedDps : 140.0f;
-    // For Shoulder (CH 1) and Elbow (CH 2), lifting against gravity requires more duration
+    float spd = (joints[ch].speedDps > 5.0f) ? joints[ch].speedDps : 20.0f;
+    // For Shoulder (CH 1) and Elbow (CH 2), lifting against gravity is slightly slower
     if ((ch == 1 || ch == 2) && cw) {
-      spd *= 0.55f; // Lifting against gravity is slower, scale duration by ~1.8x
+      spd *= 0.70f;
     }
 
     unsigned long durationMs = (unsigned long)((fabs(delta) / spd) * 1000.0f);
@@ -296,8 +321,8 @@ void commandSetAngle(int ch, float targetJointAngle, bool immediate = false) {
     jointState[ch].motionEndMs = jointState[ch].motionStartMs + durationMs;
     jointState[ch].isMoving = true;
 
-    // Full drive pulse (+-450 us) for maximum lifting torque on MG996R 360
-    uint16_t pulseUs = cw ? (joints[ch].centerPulseUs + 450) : (joints[ch].centerPulseUs - 450);
+    // Controlled drive pulse with tailored slow offset
+    uint16_t pulseUs = cw ? (joints[ch].centerPulseUs + offsetUs) : (joints[ch].centerPulseUs - offsetUs);
     pulseUs = constrain(pulseUs, joints[ch].minPulseUs, joints[ch].maxPulseUs);
 
     if (pcaDetected) {
