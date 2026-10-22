@@ -928,6 +928,62 @@ class RoboticArmApp {
     }
   }
 
+  async syncMotorAngles() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) throw new Error('Failed to query status');
+      const data = await res.json();
+      if (data && data.cur) {
+        for (let i = 0; i < 6; i++) {
+          const val = data.cur[i] !== undefined ? data.cur[i] : 90.0;
+          this.state.cur[i] = val;
+          this.state.tgt[i] = val;
+          this.isDraggingSlider[i] = false;
+          this.sliderReleaseGraceMs[i] = 0;
+
+          const slider = document.getElementById(`slider-${i}`);
+          if (slider) slider.value = val;
+
+          const valEl = document.getElementById(`val-${i}`);
+          if (valEl) valEl.textContent = val.toFixed(2);
+
+          const tgtEl = document.getElementById(`tgt-${i}`);
+          if (tgtEl) tgtEl.textContent = val.toFixed(2);
+
+          this.updateGauge(i, val);
+        }
+
+        if (this.updateDigitalTwin) {
+          this.updateDigitalTwin(this.state.cur);
+        }
+
+        const msg = `Synced! [Base: ${data.cur[0].toFixed(1)}°, Shldr: ${data.cur[1].toFixed(1)}°, Elb: ${data.cur[2].toFixed(1)}°, WrP: ${data.cur[3].toFixed(1)}°, WrR: ${data.cur[4].toFixed(1)}°, Claw: ${data.cur[5].toFixed(1)}°]`;
+        this.showToast(`🔄 ${msg}`);
+        return data.cur;
+      }
+    } catch (e) {
+      this.showToast(`❌ Sync Error: ${e.message}`);
+    }
+    return null;
+  }
+
+  async copyRealAngles() {
+    try {
+      const angles = await this.syncMotorAngles();
+      if (angles && angles.length >= 6) {
+        const text = `Base: ${angles[0].toFixed(1)}°, Shoulder: ${angles[1].toFixed(1)}°, Elbow: ${angles[2].toFixed(1)}°, Wrist Pitch: ${angles[3].toFixed(1)}°, Wrist Roll: ${angles[4].toFixed(1)}°, Claw: ${angles[5].toFixed(1)}°`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          this.showToast('📋 Copied real motor angles to clipboard!');
+        } else {
+          prompt('Copy motor angles:', text);
+        }
+      }
+    } catch (e) {
+      this.showToast(`❌ Copy Error: ${e.message}`);
+    }
+  }
+
   /* ========================================================================
      UI LISTENERS & CONTROL INTERACTIONS
      ======================================================================== */
@@ -1053,6 +1109,18 @@ class RoboticArmApp {
     document.getElementById('toggleClawBtn')?.addEventListener('click', () => {
       this.stopSweep(5);
       this.sendPost('/api/pose/CLAW');
+    });
+
+    document.getElementById('syncMotorAnglesBtn')?.addEventListener('click', () => {
+      this.syncMotorAngles();
+    });
+
+    document.getElementById('topSyncMotorBtn')?.addEventListener('click', () => {
+      this.syncMotorAngles();
+    });
+
+    document.getElementById('copyAnglesBtn')?.addEventListener('click', () => {
+      this.copyRealAngles();
     });
 
     // 3. Attach / Relax All

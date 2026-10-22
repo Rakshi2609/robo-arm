@@ -91,7 +91,7 @@ enum RoutineState {
 };
 
 // Standalone Autonomous Radar & Reach Mode (Runs on Wall Charger)
-bool autoRadarEnabled = true;
+bool autoRadarEnabled = false;
 enum AutoRadarState {
   RADAR_INIT_WAIT,   // Startup 2-second stabilization
   RADAR_SWEEP_CW,    // Base sweeping clockwise towards 170° (+80°)
@@ -281,29 +281,27 @@ void commandSetAngle(int ch, float targetJointAngle, bool immediate = false) {
     bool cw = (delta > 0.0f);
     if (joints[ch].direction < 0) cw = !cw;
 
-    // Tailored pulse offsets for 360 continuous servos
-    // Lower offset = slower, gentler rotation without violent jerking
-    // Typical MG996R deadband is +-20us around centerPulseUs (1500us)
-    uint16_t offsetUs = 60; // Default gentle speed
+    // Controlled pulse offsets for MG996R 360 continuous servos
+    uint16_t offsetUs = 140; // Default gentle speed
 
     if (ch == 0) {
-      // Base: slow, smooth, calm radar sweep (~20 deg/s)
-      offsetUs = 55;
+      // Base: smooth turntable sweep
+      offsetUs = 150;
     } else if (ch == 1) {
       // Shoulder: lifting requires torque against arm weight, lowering is gentle
-      offsetUs = cw ? 140 : 60;
+      offsetUs = cw ? 260 : 130;
     } else if (ch == 2) {
       // Elbow: lifting requires torque against forearm, lowering is gentle
-      offsetUs = cw ? 130 : 60;
+      offsetUs = cw ? 240 : 130;
     } else if (ch == 3) {
       // Wrist Pitch
-      offsetUs = 65;
+      offsetUs = 140;
     } else if (ch == 4) {
       // Wrist Roll
-      offsetUs = 65;
+      offsetUs = 140;
     } else if (ch == 5) {
       // Gripper Claw
-      offsetUs = 70;
+      offsetUs = 150;
     }
 
     // Calculate run duration in ms based on calibrated speed
@@ -1039,8 +1037,8 @@ void setup() {
   lastSonarMs = millis();
   lastBroadcastMs = millis();
 
-  // Initialize Standalone Autonomous Radar & Reach Routine
-  autoRadarEnabled = true;
+  // Standalone Autonomous Radar is disabled on boot for manual Dashboard control
+  autoRadarEnabled = false;
   radarState = RADAR_INIT_WAIT;
   radarStateStartMs = millis();
 
