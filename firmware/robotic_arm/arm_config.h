@@ -62,8 +62,8 @@ const JointCalibration DEFAULT_JOINTS[NUM_JOINTS] PROGMEM = {
   // CH 0: Base / Waist Yaw - Slow, calm radar sweep (~20 deg/s)
   {0, "Base Yaw",        +1, 0.0f,   0.0f, 180.0f,  500, 2500, 1500, true,  20.0f, true},
 
-  // CH 1: Shoulder Pitch - Controlled slow movement (~25 deg/s, 360° span)
-  {1, "Shoulder Pitch",  +1, 0.0f,   0.0f, 360.0f,  500, 2500, 1500, true,  25.0f, true},
+  // CH 1: Shoulder Pitch - Controlled slow movement (~25 deg/s, 360° span, Home: 275°)
+  {1, "Shoulder Pitch",  +1, 275.0f, 0.0f, 360.0f,  500, 2500, 1500, true,  25.0f, true},
 
   // CH 2: Elbow Pitch - Controlled slow movement (~25 deg/s)
   {2, "Elbow Pitch",     +1, 0.0f,  25.0f, 155.0f,  500, 2500, 1500, true,  25.0f, true},
@@ -86,10 +86,10 @@ struct ArmPose {
   float angles[NUM_JOINTS]; // [Base, Shoulder, Elbow, WristPitch, WristRoll, Claw]
 };
 
-// POSE 1: HOME (Compact upright resting pose: shoulder 270.0°, elbow 120.0°, claw 20.0°)
+// POSE 1: HOME (Compact upright resting pose: shoulder 275.0°, elbow 120.0°, claw 20.0°)
 const ArmPose POSE_HOME PROGMEM = {
   "HOME",
-  {90.0f, 270.0f, 120.0f, 90.0f, 90.0f, 20.0f}
+  {90.0f, 275.0f, 120.0f, 90.0f, 90.0f, 20.0f}
 };
 
 // POSE 2: DETECTED REACH (Move Pose when object is detected in 15-25cm range)
