@@ -15,4 +15,3 @@ venv/
 .DS_Store
 .idea/
 Thumbs.db
-config.bat
